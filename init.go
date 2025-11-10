@@ -1,112 +1,96 @@
 package auth
 
 import (
-	"crypto/rsa"
-	"time"
-
+	"github.com/go-gorote/auth/base"
+	"github.com/go-gorote/auth/controller"
+	"github.com/go-gorote/auth/model"
+	"github.com/go-gorote/auth/permission"
+	"github.com/go-gorote/auth/router"
+	"github.com/go-gorote/auth/service"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"gorm.io/gorm"
 )
 
-type jwtConfig struct {
-	JwtExpireAccess  time.Duration
-	JwtExpireRefresh time.Duration
-}
-
-type super struct {
-	SuperEmail string
-	SuperPass  string
-}
-
-type Config struct {
-	*gorm.DB
-	AppName          string
-	PrivateKey       *rsa.PrivateKey
-	JwtExpireAccess  time.Duration
-	JwtExpireRefresh time.Duration
-	SuperEmail       string
-	SuperPass        string
-	Domain           string
-}
-
-func (c *Config) name() string {
-	return c.AppName
-}
-
-func (c *Config) db() *gorm.DB {
-	return c.DB
-}
-
-func (c *Config) domain() string {
-	return c.Domain
-}
-
-func (c *Config) jwt() *jwtConfig {
-	return &jwtConfig{
-		JwtExpireAccess:  c.JwtExpireAccess,
-		JwtExpireRefresh: c.JwtExpireRefresh,
-	}
-}
-
-func (c *Config) super() *super {
-	if c.SuperEmail == "" || c.SuperPass == "" {
-		return nil
-	}
-	return &super{
-		SuperEmail: c.SuperEmail,
-		SuperPass:  c.SuperPass,
-	}
-}
-
-func (c *Config) privateKeyRSA() *rsa.PrivateKey {
-	return c.PrivateKey
-}
-
-type configLoad interface {
-	db() *gorm.DB
-	name() string
-	privateKeyRSA() *rsa.PrivateKey
-	super() *super
-	jwt() *jwtConfig
-	domain() string
-}
-
-type appRouter struct {
-	publicKey  *rsa.PublicKey
-	controller controller
-}
-
-type appController struct {
-	service servicer
-}
-
-type appService struct {
-	configLoad
-}
-
-func New(config configLoad) (*appRouter, error) {
-	if err := migrate(config); err != nil {
+func New(config base.Config) (*router.AppRouter, error) {
+	if err := setPermissions(config.DB); err != nil {
 		return nil, err
 	}
 
-	if config.super() != nil {
-		if err := saveUserAdmin(config); err != nil {
-			return nil, err
-		}
-	}
-	if err := savePermissions(config); err != nil {
-		return nil, err
-	}
-
-	service := appService{config}
-
-	controller := appController{
-		service: &service,
+	service := service.AppService{
+		Config: config,
+		Logger: otelslog.NewLogger("service").With(
+			"app_version", config.AppVersion,
+			"app_name", config.AppName,
+		),
 	}
 
-	router := appRouter{
-		publicKey:  &config.privateKeyRSA().PublicKey,
-		controller: &controller,
+	controller := controller.AppController{
+		AppName:    config.AppName,
+		AppVersion: config.AppVersion,
+		Service:    &service,
+		Logger: otelslog.NewLogger("controller").With(
+			"app_version", config.AppVersion,
+			"app_name", config.AppName,
+		),
+	}
+
+	router := router.AppRouter{
+		App:        config.App,
+		PublicKey:  &config.PrivateKey.PublicKey,
+		Storage:    config.Storage,
+		Controller: &controller,
 	}
 
 	return &router, nil
+}
+
+func Migrate(db *gorm.DB) error {
+	if err := db.AutoMigrate(
+		&model.User{},
+		&model.Role{},
+		&model.Permission{},
+		&model.Tenant{},
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setPermissions(db *gorm.DB) error {
+	permissions := []permission.PermissionCode{
+		// Admin
+		permission.PermissionAdmin,
+		// Users
+		permission.PermissionViewUser,
+		permission.PermissionCreateUser,
+		permission.PermissionUpdateUser,
+		// Permissions
+		permission.PermissionViewPermission,
+		permission.PermissionCreatePermission,
+		permission.PermissionUpdatePermission,
+		// Roles
+		permission.PermissionViewRole,
+		permission.PermissionCreateRole,
+		permission.PermissionUpdateRole,
+		// Tenants
+		permission.PermissionViewTenant,
+		permission.PermissionCreateTenant,
+		permission.PermissionUpdateTenant,
+	}
+	for _, permission := range permissions {
+		var p model.Permission
+		if err := db.Where("code = ?", string(permission)).First(&p).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				p = model.Permission{Code: string(permission), Active: true}
+				if err := db.Create(&p).Error; err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		} else {
+			continue
+		}
+	}
+	return nil
 }
