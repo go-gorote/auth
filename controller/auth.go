@@ -150,20 +150,51 @@ func (c *AppController) RefreshTokenHandler(ctx *fiber.Ctx) error {
 }
 
 func (c *AppController) SetCookiePainelAdminHandler(ctx *fiber.Ctx) error {
-	if err := c.Service.SetCookie(ctx, "VITE_APP_NAME", c.AppName); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
-	}
-	if err := c.Service.SetCookie(ctx, "VITE_APP_VERSION", c.AppVersion); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
-	}
-	if err := c.Service.SetCookie(ctx, "VITE_APP_API_BASEURL", gorote.MustEnvAsString("VITE_APP_API_BASEURL")); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
-	}
-	if err := c.Service.SetCookie(ctx, "VITE_APP_API_DOCUMENTATIONURL", gorote.MustEnvAsString("VITE_APP_API_DOCUMENTATIONURL")); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
-	}
-	if err := c.Service.SetCookie(ctx, "VITE_APP_STORAGE_BASEURL", gorote.MustEnvAsString("VITE_APP_STORAGE_BASEURL")); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
-	}
+	ctx.Cookie(&fiber.Cookie{
+		Name:     "VITE_APP_NAME",
+		Value:    c.AppName,
+		HTTPOnly: false,
+		Secure:   true,
+		SameSite: "None",
+		Path:     "/",
+	})
+
+	ctx.Cookie(&fiber.Cookie{
+		Name:     "VITE_APP_VERSION",
+		Value:    c.AppVersion,
+		HTTPOnly: false,
+		Secure:   true,
+		SameSite: "None",
+		Path:     "/",
+	})
+
+	ctx.Cookie(&fiber.Cookie{
+		Name:     "VITE_APP_API_BASEURL",
+		Value:    gorote.MustEnvAsString("VITE_APP_API_BASEURL"),
+		HTTPOnly: false,
+		Secure:   true,
+		SameSite: "None",
+		Path:     "/",
+	})
+
+	ctx.Cookie(&fiber.Cookie{
+		Name:     "VITE_APP_API_DOCUMENTATIONURL",
+		Value:    gorote.MustEnvAsString("VITE_APP_API_DOCUMENTATIONURL"),
+		HTTPOnly: false,
+		Secure:   true,
+		SameSite: "None",
+		Path:     "/",
+	})
+
+	ctx.Cookie(&fiber.Cookie{
+		Name:     "VITE_APP_STORAGE_BASEURL",
+		Value:    gorote.MustEnvAsString("VITE_APP_STORAGE_BASEURL"),
+		HTTPOnly: false,
+		Secure:   true,
+		SameSite: "None",
+		Path:     "/",
+	})
+
 	return ctx.Next()
 }
+
