@@ -39,6 +39,7 @@ func (s *AppService) CreateUser(ctx *fiber.Ctx, req *schema.CreateUser, password
 		c, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		user.Email = req.Email
+		user.Username = req.Username
 		user.Password = passwordHash
 		user.FirstName = req.FirstName
 		user.LastName = req.LastName
@@ -112,6 +113,7 @@ func (s *AppService) UpdateUser(req *schema.UpdateUser, editorSuper, editorPermi
 		user = users[0]
 
 		user.Email = req.Email
+		user.Username = req.Username
 		user.FirstName = req.FirstName
 		user.LastName = req.LastName
 		user.Active = req.Active
